@@ -1,4 +1,7 @@
-﻿namespace ExpressionEvaluator.Core;
+﻿using System.Globalization;
+using System.Text;
+
+namespace ExpressionEvaluator.Core;
 
 public class Evaluator
 {
@@ -8,50 +11,57 @@ public class Evaluator
         return EvaluatePostfix(postfix);
     }
 
-    private static string InfixToPostfix(string infix)
+    private static List<string> InfixToPostfix(string infix)
     {
-        var postFix = string.Empty;
+        var postFix = new List<string>();
         var stack = new Stack<char>();
-        foreach (var item in infix)
+
+        for (int i = 0; i < infix.Length; i++)
         {
-            if (IsOperator(item))
+            char item = infix[i];
+
+            if (char.IsWhiteSpace(item)) continue;
+
+            if (char.IsDigit(item) || item == '.')
             {
-                if (stack.Count == 0)
+                var number = new StringBuilder();
+                while (i < infix.Length && (char.IsDigit(infix[i]) || infix[i] == '.'))
+                {
+                    number.Append(infix[i]);
+                    i++;
+                }
+                i--;
+                postFix.Add(number.ToString());
+            }
+            else if (IsOperator(item))
+            {
+                if (item == '(')
                 {
                     stack.Push(item);
                 }
+                else if (item == ')')
+                {
+                    while (stack.Count > 0 && stack.Peek() != '(')
+                    {
+                        postFix.Add(stack.Pop().ToString());
+                    }
+                    if (stack.Count > 0) stack.Pop();
+                }
                 else
                 {
-                    if (item == ')')
+                    while (stack.Count > 0 && PriorityStack(stack.Peek()) >= PriorityInfix(item))
                     {
-                        do
-                        {
-                            postFix += stack.Pop();
-                        } while (stack.Peek() != '(');
-                        stack.Pop();
+                        if (stack.Peek() == '(') break;
+                        postFix.Add(stack.Pop().ToString());
                     }
-                    else
-                    {
-                        if (PriorityInfix(item) > PriorityStack(stack.Peek()))
-                        {
-                            stack.Push(item);
-                        }
-                        else
-                        {
-                            postFix += stack.Pop();
-                            stack.Push(item);
-                        }
-                    }
+                    stack.Push(item);
                 }
             }
-            else
-            {
-                postFix += item;
-            }
         }
+
         while (stack.Count > 0)
         {
-            postFix += stack.Pop();
+            postFix.Add(stack.Pop().ToString());
         }
         return postFix;
     }
@@ -59,35 +69,30 @@ public class Evaluator
     private static int PriorityStack(char item) => item switch
     {
         '^' => 3,
-        '*' => 2,
-        '/' => 2,
-        '+' => 1,
-        '-' => 1,
+        '*' or '/' => 2,
+        '+' or '-' => 1,
         '(' => 0,
-        _ => throw new Exception("Sintax error."),
+        _ => 0,
     };
 
     private static int PriorityInfix(char item) => item switch
     {
-        '^' => 4,
-        '*' => 2,
-        '/' => 2,
-        '+' => 1,
-        '-' => 1,
-        '(' => 5,
-        _ => throw new Exception("Sintax error."),
+        '^' => 3,
+        '*' or '/' => 2,
+        '+' or '-' => 1,
+        _ => 0,
     };
 
-    private static double EvaluatePostfix(string postfix)
+    private static double EvaluatePostfix(List<string> postfix)
     {
         var stack = new Stack<double>();
-        foreach (char item in postfix)
+        foreach (string token in postfix)
         {
-            if (IsOperator(item))
+            if (token.Length == 1 && IsOperator(token[0]))
             {
                 var b = stack.Pop();
                 var a = stack.Pop();
-                stack.Push(item switch
+                stack.Push(token[0] switch
                 {
                     '+' => a + b,
                     '-' => a - b,
@@ -99,7 +104,7 @@ public class Evaluator
             }
             else
             {
-                stack.Push(double.Parse(item.ToString()));
+                stack.Push(double.Parse(token, CultureInfo.InvariantCulture));
             }
         }
         return stack.Pop();
